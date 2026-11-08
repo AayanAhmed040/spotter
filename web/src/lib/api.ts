@@ -46,6 +46,7 @@ export function useApi() {
           ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...headers,
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: json !== undefined ? JSON.stringify(json) : rest.body,
       })

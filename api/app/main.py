@@ -25,7 +25,7 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,  # bearer tokens, no cookies
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "ngrok-skip-browser-warning"],
         max_age=600,
     )
     app.include_router(me.router)
