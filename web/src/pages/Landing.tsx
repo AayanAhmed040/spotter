@@ -6,8 +6,9 @@ import { VideoSlot } from '../components/VideoSlot'
 import { EXERCISE_IDS, EXERCISE_META } from '../exercises/meta'
 import { isAuthConfigured } from '../lib/config'
 
-/** Drop the clip at web/public/media/striqs-hero.mp4 (and optionally a .jpg poster). */
-const HERO_VIDEO = '/media/striqs-hero.mp4'
+/** Hero clip (web/public/media). Currently the push-up demo recording. */
+const HERO_VIDEO = '/media/pushups-demo.mp4'
+const HERO_POSTER = '/media/pushups-demo.jpg'
 
 export default function Landing() {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0()
@@ -58,7 +59,7 @@ export default function Landing() {
           </div>
           <p className="mt-4 text-sm text-dim">Your camera feed is analysed on your device and never uploaded.</p>
         </div>
-        <VideoSlot src={HERO_VIDEO} poster="/media/striqs-hero.jpg" label="See Striqs in action" autoPlay />
+        <VideoSlot src={HERO_VIDEO} poster={HERO_POSTER} label="See Striqs in action" autoPlay />
       </section>
 
       <section className="mt-16 grid gap-3 sm:grid-cols-3" aria-label="Exercises">

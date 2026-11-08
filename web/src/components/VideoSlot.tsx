@@ -30,7 +30,8 @@ export function VideoSlot({
           src={src}
           poster={poster}
           aria-label={label}
-          className={cx('absolute inset-0 size-full object-cover', state !== 'ready' && 'invisible')}
+          // contain, not cover: screen recordings must keep the rep counter and coaching bar in view.
+          className={cx('absolute inset-0 size-full object-contain', state !== 'ready' && 'invisible')}
           playsInline
           muted={autoPlay}
           autoPlay={autoPlay}

@@ -53,7 +53,7 @@ export const pushups: ExerciseDefinition = {
       { icon: 'privacy', title: 'Video stays on this device', body: 'Only the measurements are saved — never the footage.' },
     ],
   },
-  setupVideo: '/media/setup-pushups.mp4',
+  setupVideo: '/media/pushups-demo.mp4',
   startCue: 'Counting starts once you hold a high plank side-on.',
   components: [
     { key: 'depth', label: 'Depth', weight: SCORING.componentWeights.depth },

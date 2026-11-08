@@ -5,11 +5,10 @@ Drop video files here with these exact names and they appear in the app automati
 
 | File | Where it shows |
 |---|---|
-| `striqs-hero.mp4` (+ optional `striqs-hero.jpg` poster) | Landing page, beside the headline. Autoplays muted on loop. |
-| `setup-pushups.mp4` | Workout setup screen when Push-ups is selected |
+| `pushups-demo.mp4` (+ `pushups-demo.jpg` poster) | Landing page hero (autoplays muted on loop) **and** the Push-ups setup screen |
 | `setup-squats.mp4` | Workout setup screen when Squats is selected |
 | `setup-plank.mp4` | Workout setup screen when Plank is selected |
 
 Tips: H.264 MP4, 16:9, under ~5 MB each (they're served from the site, not a CDN).
-To use different file names, change `HERO_VIDEO` in `src/pages/Landing.tsx` or
+To use a different hero clip, change `HERO_VIDEO` in `src/pages/Landing.tsx` or
 `setupVideo` in `src/exercises/<exercise>/index.ts`.
