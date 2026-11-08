@@ -38,9 +38,9 @@ Requirements: Node 20+, Python 3.11+.
 ```bash
 # API
 cd api
-cp .env.example .env            # fill AUTH0_DOMAIN + AUTH0_AUDIENCE (see Auth0 setup)
+cp .env.example .env            
 pip install -r requirements-dev.txt
-python seed.py                  # optional: demo group with invite code DEMO42
+python seed.py                 
 uvicorn app.main:app --reload --port 8000
 
 # Web (second terminal)
