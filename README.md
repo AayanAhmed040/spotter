@@ -39,7 +39,7 @@ striqs/
 
 ## Run it locally
 
-Requirements: Node 20+, Python 3.11+.
+Requirements: Node 20+, Python 3.11+. On macOS the built-in `python3` is 3.9 — install a newer one (python.org or `brew install python@3.13`) and create the virtual environment with it: `python3.13 -m venv .venv && source .venv/bin/activate`. Start the API with `uvicorn` as below, not by running `main.py` directly.
 
 ```bash
 # API
