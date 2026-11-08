@@ -1,9 +1,10 @@
-// Spotter service worker: makes the app installable and fast to reopen.
+// Striqs service worker: makes the app installable and fast to reopen.
 // - App shell & hashed assets: cache-first.
 // - MediaPipe WASM + pose model (large, versioned URLs): cache-first, so the second workout starts instantly.
 // - API requests and Auth0 are never cached.
-const VERSION = 'spotter-v1'
+const VERSION = 'striqs-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png']
+// Setup / hero videos (web/public/media) are large and optional: never pre-cached.
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))

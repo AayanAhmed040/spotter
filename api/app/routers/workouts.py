@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -9,7 +9,7 @@ from ..auth import DB, CurrentUser
 from ..db import utcnow
 from ..models import Reaction, Workout
 from ..schemas import ReactionIn, WorkoutCreateIn, WorkoutPatchIn
-from ..scoring import SCORING_VERSION, score_session
+from ..scoring import METRIC_KIND, REP_EXERCISES, SCORING_VERSIONS, score_hold, score_reps
 from ..services.access import can_view_workout, connected_user_ids, membership
 from ..services.stats import workout_out
 
@@ -30,27 +30,48 @@ def create_workout(body: WorkoutCreateIn, user: CurrentUser, db: DB) -> dict[str
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Slow down — too many workouts saved in a minute")
 
     # Scores are recomputed here from raw measurements; client-side scores are previews only.
-    s = score_session([r.model_dump() for r in body.reps], body.target_reps)
-    w = Workout(
+    common = dict(
         user_id=user.id,  # always the authenticated user — never from the request body
         exercise=body.exercise,
+        metric_kind=METRIC_KIND[body.exercise],
         source=body.source,
         visibility=body.visibility,
         started_at=started,
         duration_ms=body.duration_ms,
-        target_reps=s.target_reps,
-        valid_reps=s.valid_reps,
-        attempted_reps=s.attempted_reps,
-        form_score=s.form_score,
-        rep_score=s.rep_score,
-        final_score=s.final_score,
-        consistency=s.consistency,
-        confidence=s.confidence,
-        scoring_version=SCORING_VERSION,
-        component_averages=s.component_averages,
-        rep_metrics=s.reps,
+        scoring_version=SCORING_VERSIONS[body.exercise],
         note=body.note,
     )
+    if body.exercise in REP_EXERCISES:
+        s = score_reps(body.exercise, body.reps or [], body.target_reps or 20)
+        w = Workout(
+            **common,
+            target_reps=s.target_reps,
+            valid_reps=s.valid_reps,
+            attempted_reps=s.attempted_reps,
+            rep_score=s.rep_score,
+            rep_metrics=s.reps,
+            form_score=s.form_score,
+            final_score=s.final_score,
+            consistency=s.consistency,
+            confidence=s.confidence,
+            component_averages=s.component_averages,
+        )
+    else:
+        h = score_hold(body.exercise, [win.model_dump() for win in body.hold_windows or []], body.target_hold_ms or 60_000)
+        w = Workout(
+            **common,
+            target_hold_ms=h.target_hold_ms,
+            hold_ms=h.hold_ms,
+            longest_hold_ms=h.longest_hold_ms,
+            hold_score=h.hold_score,
+            hold_windows=h.windows,
+            rep_metrics=[],
+            form_score=h.form_score,
+            final_score=h.final_score,
+            consistency=h.consistency,
+            confidence=h.confidence,
+            component_averages=h.component_averages,
+        )
     db.add(w)
     db.commit()
     db.refresh(w)
@@ -119,6 +140,7 @@ def feed(
     user: CurrentUser,
     db: DB,
     group_id: int | None = Query(None, alias="groupId"),
+    exercise: Literal["pushup", "squat", "plank"] | None = None,
     before: datetime | None = None,
     limit: int = Query(20, ge=1, le=50),
 ) -> dict[str, Any]:
@@ -135,6 +157,8 @@ def feed(
         .where(Workout.user_id.in_(authors))
         .where((Workout.visibility == "groups") | (Workout.user_id == user.id))
     )
+    if exercise:
+        q = q.where(Workout.exercise == exercise)
     if before:
         q = q.where(Workout.started_at < (before if before.tzinfo else before.replace(tzinfo=UTC)).astimezone(UTC))
     rows = db.scalars(q.order_by(Workout.started_at.desc()).limit(limit + 1)).all()

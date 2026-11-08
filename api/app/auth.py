@@ -129,12 +129,17 @@ CurrentUser = Annotated[User, Depends(current_user)]
 DB = Annotated[Session, Depends(get_db)]
 
 
+PLACEHOLDER_NAME = "New member"
+# Names given to profiles before Auth0 sent a real one (older builds used the first).
+PLACEHOLDER_NAMES = ("New Spotter", PLACEHOLDER_NAME)
+
+
 def provision_user(db: Session, sub: str, profile: dict[str, Any]) -> User:
     """Create the app-side profile for an Auth0 identity. Idempotent under races."""
     display = (profile.get("name") or profile.get("nickname") or "").strip()
     if not display or "@" in display:
-        display = "New Spotter"
-    base = profile.get("nickname") or (profile.get("email") or "").split("@")[0] or "spotter"
+        display = PLACEHOLDER_NAME
+    base = profile.get("nickname") or (profile.get("email") or "").split("@")[0] or "athlete"
     user = User(
         auth0_sub=sub,
         username=unique_username(db, base),
@@ -158,7 +163,7 @@ def provision_user(db: Session, sub: str, profile: dict[str, Any]) -> User:
 
 
 def unique_username(db: Session, base: str) -> str:
-    slug = re.sub(r"[^a-z0-9_]", "", base.lower().replace(".", "_").replace("-", "_"))[:20] or "spotter"
+    slug = re.sub(r"[^a-z0-9_]", "", base.lower().replace(".", "_").replace("-", "_"))[:20] or "athlete"
     if len(slug) < 3:
         slug = f"{slug}_fit"
     candidate = slug

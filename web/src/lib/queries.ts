@@ -1,9 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { RepMeasurement } from '../pose/types'
+import type { ExerciseId, HoldWindow, RepBase } from '../exercises/shared/types'
 import { useApi } from './api'
 import { TIMEZONE } from './config'
 import type {
-  AuthSession,
   Challenge,
   FeedPage,
   Group,
@@ -21,12 +20,12 @@ export const keys = {
   feed: (groupId?: number) => ['feed', groupId ?? 'all'] as const,
   groups: ['groups'] as const,
   group: (id: number) => ['group', id] as const,
-  leaderboard: (id: number, period: string) => ['leaderboard', id, period] as const,
+  leaderboard: (id: number, period: string, exercise: string) => ['leaderboard', id, period, exercise] as const,
   challenges: (id: number) => ['challenges', id] as const,
   profile: (username: string) => ['profile', username] as const,
   dayWorkouts: (username: string, date: string) => ['dayWorkouts', username, date] as const,
+  history: (username: string, exercise: string) => ['history', username, exercise] as const,
   insight: ['insight'] as const,
-  session: ['authSession'] as const,
 }
 
 export function useMe() {
@@ -59,11 +58,11 @@ export function useGroup(id: number) {
   return useQuery({ queryKey: keys.group(id), queryFn: () => api<GroupDetail>(`/api/groups/${id}`) })
 }
 
-export function useLeaderboard(id: number, period: 'week' | 'month' | 'all') {
+export function useLeaderboard(id: number, period: 'week' | 'month' | 'all', exercise: ExerciseId) {
   const api = useApi()
   return useQuery({
-    queryKey: keys.leaderboard(id, period),
-    queryFn: () => api<Leaderboard>(`/api/groups/${id}/leaderboard?period=${period}`),
+    queryKey: keys.leaderboard(id, period, exercise),
+    queryFn: () => api<Leaderboard>(`/api/groups/${id}/leaderboard?period=${period}&exercise=${exercise}`),
   })
 }
 
@@ -90,6 +89,17 @@ export function useDayWorkouts(username: string, date: string | null) {
   })
 }
 
+/** A user's recent workouts, optionally for one exercise. */
+export function useHistory(username: string, exercise: ExerciseId | 'all') {
+  const api = useApi()
+  return useQuery({
+    queryKey: keys.history(username, exercise),
+    enabled: Boolean(username),
+    queryFn: () =>
+      api<Workout[]>(`/api/users/${username}/workouts?limit=10${exercise === 'all' ? '' : `&exercise=${exercise}`}`),
+  })
+}
+
 export function useInsight(enabled: boolean) {
   const api = useApi()
   return useQuery({
@@ -100,28 +110,29 @@ export function useInsight(enabled: boolean) {
   })
 }
 
-export function useAuthSession() {
-  const api = useApi()
-  return useQuery({ queryKey: keys.session, queryFn: () => api<AuthSession>('/api/auth/session'), retry: false })
-}
-
 // ---------- mutations ----------
 
 /** Anything a new workout could change. */
 function invalidateActivity(qc: ReturnType<typeof useQueryClient>) {
-  for (const k of ['feed', 'profile', 'leaderboard', 'challenges', 'dayWorkouts', 'insight']) {
+  for (const k of ['feed', 'profile', 'leaderboard', 'challenges', 'dayWorkouts', 'history', 'insight']) {
     qc.invalidateQueries({ queryKey: [k] })
   }
 }
 
+/** POST /api/workouts — raw measurements only; the server computes the scores. */
 export interface NewWorkout {
-  source: 'camera' | 'demo'
+  exercise: ExerciseId
+  source: 'camera'
   visibility: 'groups' | 'private'
   startedAt: string
   durationMs: number
-  targetReps: number
-  reps: RepMeasurement[]
   note?: string
+  // Rep exercises
+  targetReps?: number
+  reps?: RepBase[]
+  // Hold exercises
+  targetHoldMs?: number
+  holdWindows?: HoldWindow[]
 }
 
 export function useSaveWorkout() {
@@ -161,9 +172,11 @@ export function useToggleReaction() {
             }
           : data,
       )
-      qc.setQueriesData<Workout[]>({ queryKey: ['dayWorkouts'] }, (list) =>
-        list?.map((w) => (w.id === updated.id ? { ...w, ...updated } : w)),
-      )
+      for (const key of ['dayWorkouts', 'history']) {
+        qc.setQueriesData<Workout[]>({ queryKey: [key] }, (list) =>
+          list?.map((w) => (w.id === updated.id ? { ...w, ...updated } : w)),
+        )
+      }
       qc.invalidateQueries({ queryKey: ['leaderboard'] })
     },
   })
@@ -220,7 +233,7 @@ export function useGenerateChallenge(groupId: number) {
   const api = useApi()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { difficulty: 'easy' | 'moderate' | 'hard'; days: number }) =>
+    mutationFn: (body: { difficulty: 'easy' | 'moderate' | 'hard'; days: number; exercise: 'pushup' | 'squat' }) =>
       api<Challenge>(`/api/groups/${groupId}/challenges/generate`, { method: 'POST', json: body }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.challenges(groupId) })

@@ -20,3 +20,19 @@ Notes for the DEV write-up. Newest at the bottom.
 - Safari/installed PWAs block third-party cookies, so silent auth via iframe fails → refresh tokens with `offline_access` and local-storage cache.
 - Simulated workouts must not pollute leaderboards — they're tagged `source: demo` and excluded everywhere competitive.
 - Weekly insights cached per week went stale after the first workout → cache is now invalidated when the underlying numbers change (still throttled).
+
+## Day 2 — Striqs: squats, planks, rebrand
+
+**Rebrand.** Spotter → Striqs. The mark was traced from the logo raster (column-by-column outline) into an SVG path so it stays sharp at every size; the wordmark is Outfit, which matches the logo's geometric letterforms. Palette taken straight from the logo: charcoal + ice blue.
+
+**One folder per exercise.** `web/src/exercises/{pushups,squats,planks}` each own their detector, scoring and config; `shared/` holds geometry, landmark helpers, smoothing/stability/feedback utilities, the camera session engine and the generic rep-session aggregator. The UI only talks to an `ExerciseDefinition` (tracker factory, score, explain, details), so adding an exercise doesn't touch the workout screen.
+
+**Squats need their own geometry.** First thresholds assumed ~90° at the knee for a full squat — the simulator test caught that the internal hip–knee–ankle angle at parallel is closer to 55–65°. Depth now ramps from 115° (0 points) to 70° (100 points).
+
+**Planks are timed, not counted.** The tracker only adds time on frames that are a valid plank, caps frame gaps (a hidden tab can't add time), uses a short grace period so a wobble doesn't split the hold, and summarises the hold in ≤5 s windows. Windows are what the server re-scores — the same "raw measurements in, authoritative score out" contract as reps.
+
+**Client and server agree by construction.** The browser preview now applies the same downgrade rules the server applies (e.g. a "valid" squat at 118° becomes "not deep enough"), and a shared fixture with cases for all three exercises is checked by both test suites.
+
+**Migrating real data.** SQLite can't drop NOT NULL in place, so migration 1 follows SQLite's table-rebuild procedure with foreign keys off (reactions keep their workout ids) and verifies row counts before committing; Postgres uses plain ALTERs. Both paths were tested against databases created by the original code.
+
+**Testing the live screens without a camera model.** A QA-only Vite alias swapped MediaPipe for the test simulators, so the real trackers, live HUD, results and saving were exercised end-to-end in Chrome. (Removed afterwards — not shipped.)

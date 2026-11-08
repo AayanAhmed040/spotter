@@ -1,13 +1,13 @@
 import logging
 from datetime import UTC, date, datetime, timedelta
 from statistics import fmean
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 
-from ..auth import DB, CurrentUser, VerifiedToken, current_user, provision_user, verified_token
+from ..auth import DB, PLACEHOLDER_NAMES, CurrentUser, VerifiedToken, current_user, provision_user, verified_token
 from ..config import get_settings
 from ..db import as_utc, utcnow
 from ..models import Insight, User, Workout
@@ -39,6 +39,7 @@ def auth_session(token: Annotated[VerifiedToken, Depends(verified_token)], user:
         "issuedAt": c["iat"],
         "expiresAt": c["exp"],
         "appUserId": user.id,
+        # Not shown in the app any more; kept as a diagnostic for verifying Auth0 tokens.
         "checks": [
             "Signature verified with the tenant's published JWKS key",
             "Issuer matches the configured Auth0 tenant",
@@ -78,7 +79,7 @@ async def sync_profile(
             user.avatar_url = profile["picture"]
         if profile.get("email") and profile.get("email_verified", True):
             user.email = profile["email"]
-        if user.display_name == "New Spotter" and profile.get("name") and "@" not in profile["name"]:
+        if user.display_name in PLACEHOLDER_NAMES and profile.get("name") and "@" not in profile["name"]:
             user.display_name = profile["name"][:80]
         user.last_seen_at = utcnow()
         db.commit()
@@ -124,12 +125,15 @@ def user_workouts(
     db: DB,
     tz: str = "UTC",
     on: date | None = Query(None, alias="date"),
+    exercise: Literal["pushup", "squat", "plank"] | None = None,
     limit: int = Query(20, ge=1, le=100),
 ) -> list[dict[str, Any]]:
     target = db.scalar(select(User).where(User.username == username))
     if target is None or not can_view_user(db, user, target):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     q = select(Workout).where(Workout.user_id == target.id)
+    if exercise:
+        q = q.where(Workout.exercise == exercise)
     if target.id != user.id:
         q = q.where(Workout.visibility == "groups")
     zone = tz_or_utc(tz)
@@ -148,30 +152,36 @@ def insight_stats(db: DB, user: User, tz: str) -> dict[str, Any]:
     today = datetime.now(zone).date()
     this_week = week_start(today)
     last_week = this_week - timedelta(days=7)
-    ws = [
-        w for w in db.scalars(select(Workout).where(Workout.user_id == user.id, Workout.source != "demo")).all()
-    ]
+    ws = list(db.scalars(select(Workout).where(Workout.user_id == user.id, Workout.source != "demo")).all())
     cur = [w for w in ws if local_day(w.started_at, zone) >= this_week]
     prev = [w for w in ws if last_week <= local_day(w.started_at, zone) < this_week]
     avg = lambda xs: round(fmean(xs), 1) if xs else None  # noqa: E731
     cur_form, prev_form = avg([w.form_score for w in cur]), avg([w.form_score for w in prev])
-    weakest = None
-    if cur:
-        comps = {k: fmean(w.component_averages.get(k, 0) for w in cur) for k in ("depth", "lockout", "alignment", "control")}
-        weakest = min(comps, key=comps.get)
+
+    by_exercise: dict[str, dict[str, Any]] = {}
+    for ex in ("pushup", "squat", "plank"):
+        xs = [w for w in cur if w.exercise == ex]
+        entry: dict[str, Any] = {"sessions": len(xs), "avgForm": avg([w.form_score for w in xs])}
+        if ex == "plank":
+            entry["holdSeconds"] = sum(w.hold_ms or 0 for w in xs) // 1000
+            entry["longestHoldSeconds"] = max((w.longest_hold_ms or 0 for w in xs), default=0) // 1000
+        else:
+            entry["validReps"] = sum(w.valid_reps or 0 for w in xs)
+        if xs:
+            keys = set().union(*(w.component_averages.keys() for w in xs))
+            comps = {k: fmean(w.component_averages.get(k, 0) for w in xs) for k in keys}
+            entry["weakestFormArea"] = min(comps, key=comps.get) if comps else None
+        by_exercise[ex] = entry
+
     return {
         "daysIntoWeek": (today - this_week).days + 1,
         "sessionsThisWeek": len(cur),
         "activeDaysThisWeek": len({local_day(w.started_at, zone) for w in cur}),
-        "validRepsThisWeek": sum(w.valid_reps for w in cur),
         "avgFormThisWeek": cur_form,
-        "bestScoreThisWeek": max((w.final_score for w in cur), default=None),
+        "byExercise": by_exercise,
         "sessionsLastWeek": len(prev),
-        "validRepsLastWeek": sum(w.valid_reps for w in prev),
         "avgFormLastWeek": prev_form,
         "formChangeVsLastWeek": round(cur_form - prev_form, 1) if cur_form is not None and prev_form is not None else None,
-        "weakestFormAreaThisWeek": weakest,
-        "lifetimeValidReps": sum(w.valid_reps for w in ws),
         "lifetimeSessions": len(ws),
         "groupsJoined": len(user.memberships),
     }

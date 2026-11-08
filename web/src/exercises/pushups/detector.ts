@@ -13,7 +13,7 @@
  * "armed" is only set once the arms are extended, so bouncing around the
  * bottom or hovering mid-range can never produce a second count.
  */
-import { clamp, distance, jointAngle, mean, signedOffsetTowardFloor, tiltFromHorizontal, type Point } from './geometry'
+import { clamp, distance, jointAngle, mean, signedOffsetTowardFloor, tiltFromHorizontal, type Point } from '../shared/geometry'
 import { scoreRep } from './scoring'
 import {
   LM,

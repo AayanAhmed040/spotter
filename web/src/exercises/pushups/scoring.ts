@@ -1,12 +1,14 @@
 /**
  * Push-up scoring. Pure functions, no detection logic.
  *
- * The backend (api/app/scoring.py) implements the same model and is the
- * authority for stored scores; both are checked against
- * shared/scoring-cases.json so they cannot drift apart.
+ * The backend (api/app/scoring/pushup.py) implements the same model and is the
+ * authority for stored scores; both are checked against shared/scoring-cases.json.
  */
-import { clamp, mean, stdev } from './geometry'
+import { mean } from '../shared/geometry'
+import { ramp, scoreRepSession, weightedForm, type RepSessionScore } from '../shared/repScoring'
 import type { FormComponents, RepMeasurement, ScoredRep } from './types'
+
+export { ramp } from '../shared/repScoring'
 
 export const SCORING_VERSION = 1
 
@@ -28,12 +30,6 @@ export const SCORING = {
   controlRamp: [800, 400] as const, // rep duration, ms (slower is better, up to 800ms)
 }
 
-/** Linear score: 100 at `best`, 0 at `worst`, clamped. Works in either direction. */
-export function ramp(value: number, best: number, worst: number): number {
-  if (best === worst) return value === best ? 100 : 0
-  return clamp(((value - worst) / (best - worst)) * 100, 0, 100)
-}
-
 export function scoreComponents(m: RepMeasurement): FormComponents {
   return {
     depth: ramp(m.minElbowAngle, ...SCORING.depthRamp),
@@ -43,89 +39,46 @@ export function scoreComponents(m: RepMeasurement): FormComponents {
   }
 }
 
+/**
+ * Rules the server re-applies to every submitted rep (it can downgrade a rep,
+ * never upgrade one). Applied to the on-device preview too, so both agree.
+ */
+export function revalidate(m: RepMeasurement): RepMeasurement {
+  const reason = !m.valid
+    ? m.invalidReason
+    : m.minElbowAngle > 105
+      ? 'Not deep enough'
+      : m.durationMs < 350
+        ? 'Too fast to track reliably'
+        : m.confidence < 0.25
+          ? 'Low tracking confidence'
+          : m.meanBodyDeviation > 45
+            ? 'Body not in a plank'
+            : null
+  return { ...m, valid: reason === null, invalidReason: reason }
+}
+
 export function scoreRep(m: RepMeasurement): ScoredRep {
   const components = scoreComponents(m)
-  const w = SCORING.componentWeights
-  const formScore =
-    components.depth * w.depth +
-    components.lockout * w.lockout +
-    components.alignment * w.alignment +
-    components.control * w.control
-  return { ...m, components, formScore: round1(formScore) }
+  return { ...m, components, formScore: weightedForm(components, SCORING.componentWeights) }
 }
 
-export interface SessionScore {
-  validReps: number
-  attemptedReps: number
-  targetReps: number
-  /** Confidence-weighted mean of valid rep form scores. */
-  meanRepForm: number
-  /** 100 = every rep scored the same. */
-  consistency: number
-  /** F — session form score, 0–100. */
-  formScore: number
-  /** R — repetition score, 0–100. */
-  repScore: number
-  /** S — final score, 0–100. */
-  finalScore: number
-  /** Mean confidence over valid reps, 0–1. */
-  confidence: number
-  /** Averages of each component over valid reps, for the explanation UI. */
-  componentAverages: FormComponents
-}
+export type SessionScore = RepSessionScore
 
 export function scoreSession(reps: ScoredRep[], targetReps = SCORING.defaultTargetReps): SessionScore {
-  const valid = reps.filter((r) => r.valid)
-  const n = valid.length
-  const target = Math.max(1, targetReps)
-
-  let meanRepForm = 0
-  let consistency = 100
-  let formScore = 0
-  let confidence = 0
-  const componentAverages: FormComponents = { depth: 0, lockout: 0, alignment: 0, control: 0 }
-
-  if (n > 0) {
-    // Low-confidence reps count for less: we're less sure what we saw.
-    const weights = valid.map((r) => Math.max(0.05, r.confidence))
-    const wSum = weights.reduce((s, w) => s + w, 0)
-    meanRepForm = valid.reduce((s, r, i) => s + r.formScore * weights[i], 0) / wSum
-    confidence = mean(valid.map((r) => r.confidence))
-
-    // Mean (not max) plus a consistency term: one great rep can't carry a sloppy set.
-    if (n >= 2) {
-      consistency = clamp(100 - SCORING.consistencyPenaltyPerStdev * stdev(valid.map((r) => r.formScore)), 0, 100)
-      formScore = (1 - SCORING.consistencyWeight) * meanRepForm + SCORING.consistencyWeight * consistency
-    } else {
-      formScore = meanRepForm
-    }
-
-    for (const key of Object.keys(componentAverages) as (keyof FormComponents)[]) {
-      componentAverages[key] = round1(mean(valid.map((r) => r.components[key])))
-    }
-  }
-
-  const repScore = 100 * Math.min(n / target, 1)
-  const finalScore = SCORING.finalFormWeight * formScore + SCORING.finalRepWeight * repScore
-
-  return {
-    validReps: n,
-    attemptedReps: reps.length,
-    targetReps: target,
-    meanRepForm: round1(meanRepForm),
-    consistency: round1(consistency),
-    formScore: round1(formScore),
-    repScore: round1(repScore),
-    finalScore: round1(finalScore),
-    confidence: Math.round(confidence * 100) / 100,
-    componentAverages,
-  }
+  return scoreRepSession(reps, targetReps, {
+    finalFormWeight: SCORING.finalFormWeight,
+    finalVolumeWeight: SCORING.finalRepWeight,
+    consistencyWeight: SCORING.consistencyWeight,
+    consistencyPenaltyPerStdev: SCORING.consistencyPenaltyPerStdev,
+    componentWeights: SCORING.componentWeights,
+  })
 }
 
 /** Plain-language reasons behind a session score, worst first. */
 export function explainSession(s: SessionScore, reps: ScoredRep[]): string[] {
   const valid = reps.filter((r) => r.valid)
-  if (valid.length === 0) return ['No complete reps were detected, so there is no form score yet.']
+  if (valid.length === 0) return ['No complete push-ups were detected, so there is no form score yet.']
   const lines: { score: number; text: string }[] = []
   const avg = (f: (r: ScoredRep) => number) => Math.round(mean(valid.map(f)))
   const c = s.componentAverages
@@ -150,10 +103,7 @@ export function explainSession(s: SessionScore, reps: ScoredRep[]): string[] {
   })
   lines.push({
     score: c.lockout,
-    text:
-      c.lockout >= 80
-        ? 'Arms fully extended at the top.'
-        : 'Straighten your arms fully at the top of each rep.',
+    text: c.lockout >= 80 ? 'Arms fully extended at the top.' : 'Straighten your arms fully at the top of each rep.',
   })
   lines.push({
     score: c.control,
@@ -173,8 +123,4 @@ export function explainSession(s: SessionScore, reps: ScoredRep[]): string[] {
     lines.push({ score: 0, text: `${invalid} rep${invalid === 1 ? '' : 's'} didn't count (shown in the rep list).` })
   }
   return lines.sort((a, b) => a.score - b.score).map((l) => l.text)
-}
-
-function round1(v: number): number {
-  return Math.round(v * 10) / 10
 }

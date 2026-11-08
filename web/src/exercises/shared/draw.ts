@@ -1,10 +1,11 @@
 import type { FeedbackTone, Landmark } from './types'
 import { LM } from './types'
 
+// Matches the --color-* tokens in index.css.
 const TONE_COLOR: Record<FeedbackTone, string> = {
-  neutral: '#eef2f7',
+  neutral: '#c6dcf2',
   good: '#3ddc97',
-  warn: '#ffc83d',
+  warn: '#ffc857',
   bad: '#ff6b5b',
 }
 
@@ -50,7 +51,7 @@ export function drawPose(ctx: CanvasRenderingContext2D, landmarks: Landmark[], t
     const p = landmarks[i]
     if (!p || (p.visibility ?? 1) < 0.3 || i === LM.nose) continue
     ctx.globalAlpha = Math.min(1, 0.25 + (p.visibility ?? 1))
-    ctx.fillStyle = '#0f1b33'
+    ctx.fillStyle = '#181c21'
     ctx.strokeStyle = color
     ctx.lineWidth = 4 * scale
     ctx.beginPath()
@@ -68,22 +69,4 @@ export function drawPose(ctx: CanvasRenderingContext2D, landmarks: Landmark[], t
     ctx.stroke()
   }
   ctx.globalAlpha = 1
-}
-
-/** Background for demo mode: a floor line and a grid, so the simulated athlete reads as a scene. */
-export function drawDemoScene(ctx: CanvasRenderingContext2D): void {
-  const { width: w, height: h } = ctx.canvas
-  ctx.fillStyle = '#132242'
-  ctx.fillRect(0, 0, w, h)
-  ctx.strokeStyle = 'rgba(155,170,203,0.08)'
-  ctx.lineWidth = 1
-  for (let x = 0; x < w; x += 64) {
-    ctx.beginPath()
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, h)
-    ctx.stroke()
-  }
-  const floor = h * 0.845
-  ctx.fillStyle = '#1c2f59'
-  ctx.fillRect(0, floor, w, h - floor)
 }

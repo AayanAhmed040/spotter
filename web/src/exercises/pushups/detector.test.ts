@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeFrame, PushupDetector } from './pushupDetector'
+import { analyzeFrame, PushupDetector } from './detector'
 import { ATHLETES, buildLandmarks, mulberry32, simulateSession, SIM_HEIGHT, SIM_WIDTH } from './simulator'
 import { scoreSession } from './scoring'
 import type { PoseFrame } from './types'

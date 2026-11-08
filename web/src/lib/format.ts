@@ -31,3 +31,8 @@ export function confidenceLabel(c: number): { label: string; tone: 'good' | 'war
   if (c >= 0.5) return { label: 'Medium tracking confidence', tone: 'warn' }
   return { label: 'Low tracking confidence', tone: 'bad' }
 }
+
+/** "1:30" for 90 000 ms. */
+export function holdTime(ms: number | null | undefined): string {
+  return clock(ms ?? 0)
+}

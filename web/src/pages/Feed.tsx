@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { PushupGlyph } from '../components/AppShell'
+import { Play } from 'lucide-react'
 import { ChallengeStrip } from '../components/ChallengeCard'
 import { WorkoutCard } from '../components/WorkoutCard'
 import { Button, EmptyState, ErrorNote, SectionTitle, Spinner } from '../components/ui'
@@ -14,8 +14,8 @@ export default function Feed() {
   return (
     <div className="space-y-6">
       {noGroups && (
-        <div className="rounded-[var(--radius-card)] bg-jersey p-5 text-ink">
-          <h2 className="font-display text-3xl leading-none font-black">Push-ups are better with company</h2>
+        <div className="rounded-[var(--radius-card)] bg-accent p-5 text-ink">
+          <h2 className="font-display text-3xl leading-tight font-semibold tracking-tight">Workouts are better with company</h2>
           <p className="mt-2 text-[15px]">Start a group for your friends, team or club — or join one with an invite code.</p>
           <Link to="/groups" className="mt-4 inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-chalk">
             Find your crew
@@ -30,7 +30,7 @@ export default function Feed() {
           action={
             <Link to="/workout" className="hidden md:block">
               <Button size="sm">
-                <PushupGlyph className="size-5" /> Start a set
+                <Play className="size-4" aria-hidden /> Start a workout
               </Button>
             </Link>
           }
@@ -47,7 +47,7 @@ export default function Feed() {
             body="Finish a set and it shows up here for everyone in your groups."
             action={
               <Link to="/workout">
-                <Button>Do your first set</Button>
+                <Button>Start your first workout</Button>
               </Link>
             }
           />

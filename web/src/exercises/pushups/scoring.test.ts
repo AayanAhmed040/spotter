@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { ramp, scoreRep, scoreSession, SCORING } from './scoring'
 import type { RepMeasurement } from './types'
@@ -92,18 +91,4 @@ describe('scoreSession', () => {
     const s = scoreSession([], 20)
     expect(s.finalScore).toBe(0)
   })
-})
-
-describe('shared fixture (kept in sync with api/app/scoring.py)', () => {
-  const fixture = JSON.parse(readFileSync(new URL('../../../shared/scoring-cases.json', import.meta.url), 'utf8'))
-  for (const c of fixture.cases) {
-    it(c.name, () => {
-      const scored = c.reps.map((r: RepMeasurement) => scoreRep(r))
-      const s = scoreSession(scored, c.targetReps)
-      expect(s.formScore).toBeCloseTo(c.expected.formScore, 1)
-      expect(s.repScore).toBeCloseTo(c.expected.repScore, 1)
-      expect(s.finalScore).toBeCloseTo(c.expected.finalScore, 1)
-      expect(s.validReps).toBe(c.expected.validReps)
-    })
-  }
 })

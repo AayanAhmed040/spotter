@@ -13,9 +13,13 @@ from .db import Base, utcnow
 
 # Workout sources:
 #   camera — analysed live by MediaPipe on the user's device
-#   demo   — the labelled simulator; shown in feeds, excluded from leaderboards/challenges
-#   seed   — sample history for demo accounts
+#   demo   — legacy: the old labelled simulator; excluded from leaderboards/challenges
+#   seed   — legacy: sample history for demo accounts (see scripts/remove_demo_data.py)
 COMPETITIVE_SOURCES = ("camera", "seed")
+
+# How an exercise is measured. Rep columns are NULL for hold workouts and vice versa.
+REP_EXERCISES = ("pushup", "squat")
+HOLD_EXERCISES = ("plank",)
 
 
 class User(Base):
@@ -63,36 +67,58 @@ class GroupMember(Base):
 
 
 class Workout(Base):
+    """One finished set of one exercise.
+
+    Rep exercises (push-ups, squats) fill the *_reps / rep_score columns and
+    `rep_metrics`; hold exercises (planks) fill the hold_* columns and
+    `hold_windows`. Shared columns (form, final score, duration…) are always set.
+    """
+
     __tablename__ = "workouts"
     __table_args__ = (Index("ix_workouts_user_started", "user_id", "started_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    exercise: Mapped[str] = mapped_column(String(20), default="pushup")
+    exercise: Mapped[str] = mapped_column(String(20), default="pushup")  # pushup | squat | plank
+    metric_kind: Mapped[str] = mapped_column(String(5), default="reps", server_default="reps")  # reps | hold
     source: Mapped[str] = mapped_column(String(10), default="camera")
     visibility: Mapped[str] = mapped_column(String(10), default="groups")  # groups | private
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     duration_ms: Mapped[int] = mapped_column(Integer)
-    target_reps: Mapped[int] = mapped_column(Integer, default=20)
 
-    # Derived scores (recomputed server-side from rep_metrics; see scoring.py)
-    valid_reps: Mapped[int] = mapped_column(Integer)
-    attempted_reps: Mapped[int] = mapped_column(Integer)
+    # Shared derived scores (recomputed server-side; see app/scoring/)
     form_score: Mapped[float] = mapped_column(Float)
-    rep_score: Mapped[float] = mapped_column(Float)
     final_score: Mapped[float] = mapped_column(Float)
     consistency: Mapped[float] = mapped_column(Float)
     confidence: Mapped[float] = mapped_column(Float)
     scoring_version: Mapped[int] = mapped_column(Integer)
     component_averages: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
+    # Rep exercises only
+    target_reps: Mapped[int | None] = mapped_column(Integer)
+    valid_reps: Mapped[int | None] = mapped_column(Integer)
+    attempted_reps: Mapped[int | None] = mapped_column(Integer)
+    rep_score: Mapped[float | None] = mapped_column(Float)
     # Raw per-rep measurements exactly as measured on-device. No video is ever stored.
     rep_metrics: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+
+    # Hold exercises only
+    target_hold_ms: Mapped[int | None] = mapped_column(Integer)
+    hold_ms: Mapped[int | None] = mapped_column(Integer)
+    longest_hold_ms: Mapped[int | None] = mapped_column(Integer)
+    hold_score: Mapped[float | None] = mapped_column(Float)
+    # Raw ≤5 s measurement windows of the hold.
+    hold_windows: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+
     note: Mapped[str | None] = mapped_column(String(280))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped[User] = relationship()
     reactions: Mapped[list["Reaction"]] = relationship(back_populates="workout", cascade="all, delete-orphan")
+
+    @property
+    def volume_score(self) -> float | None:
+        return self.rep_score if self.metric_kind == "reps" else self.hold_score
 
 
 class Reaction(Base):
@@ -110,7 +136,7 @@ class Reaction(Base):
 
 
 class Challenge(Base):
-    """A collective group goal: every member's valid reps add to one total."""
+    """A collective group goal: every member's valid reps of one exercise add to one total."""
 
     __tablename__ = "challenges"
 

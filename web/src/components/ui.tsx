@@ -9,7 +9,7 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-jersey text-ink hover:bg-jersey-hi font-semibold',
+  primary: 'bg-accent text-ink hover:bg-accent-hi font-semibold',
   secondary: 'bg-court-hi text-chalk hover:bg-line border border-line',
   ghost: 'text-mist hover:text-chalk hover:bg-court',
   danger: 'bg-flag/15 text-flag hover:bg-flag/25 border border-flag/30',
@@ -84,7 +84,7 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="rounded-[var(--radius-card)] border border-dashed border-line px-6 py-10 text-center">
-      <h3 className="font-display text-2xl font-extrabold">{title}</h3>
+      <h3 className="font-display text-2xl font-bold">{title}</h3>
       <p className="mx-auto mt-2 max-w-sm text-sm text-mist">{body}</p>
       {action && <div className="mt-5 flex justify-center">{action}</div>}
     </div>
@@ -112,7 +112,7 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
         tone === 'neutral' && 'bg-court-hi text-mist',
         tone === 'ai' && 'bg-sky/15 text-sky',
-        tone === 'sim' && 'bg-jersey/15 text-jersey',
+        tone === 'sim' && 'bg-warn/15 text-warn',
         tone === 'good' && 'bg-go/15 text-go',
       )}
     >
@@ -124,7 +124,7 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
-      <h2 className="font-display text-[26px] leading-none font-extrabold">{children}</h2>
+      <h2 className="font-display text-[24px] leading-none font-bold tracking-tight">{children}</h2>
       {action}
     </div>
   )
@@ -162,8 +162,8 @@ export function Segmented<T extends string>({
 }
 
 /** Horizontal bar for a 0–100 value. */
-export function Meter({ value, tone = 'jersey' }: { value: number; tone?: 'jersey' | 'go' | 'flag' | 'sky' }) {
-  const color = { jersey: 'bg-jersey', go: 'bg-go', flag: 'bg-flag', sky: 'bg-sky' }[tone]
+export function Meter({ value, tone = 'accent' }: { value: number; tone?: 'accent' | 'go' | 'warn' | 'flag' | 'sky' }) {
+  const color = { accent: 'bg-accent', go: 'bg-go', warn: 'bg-warn', flag: 'bg-flag', sky: 'bg-sky' }[tone]
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-court-hi" aria-hidden>
       <div className={cx('h-full rounded-full transition-[width] duration-500', color)} style={{ width: `${Math.max(2, Math.min(100, value))}%` }} />

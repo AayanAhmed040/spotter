@@ -1,5 +1,13 @@
+import { holdTime } from '../lib/format'
 import type { CalendarDay } from '../lib/types'
 import { cx } from './ui'
+
+function describeDay(d: CalendarDay): string {
+  const parts = [`${d.workouts} workout${d.workouts > 1 ? 's' : ''}`]
+  if (d.reps) parts.push(`${d.reps} reps`)
+  if (d.holdMs) parts.push(`${holdTime(d.holdMs)} of planking`)
+  return parts.join(', ')
+}
 
 const HEAT = ['bg-heat-0', 'bg-heat-1', 'bg-heat-2', 'bg-heat-3', 'bg-heat-4']
 
@@ -57,13 +65,13 @@ export function ActivityCalendar({
               key={d.date}
               onClick={() => onSelect(selected === d.date ? null : d.date)}
               aria-label={`${new Date(d.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}: ${
-                d.workouts ? `${d.workouts} workout${d.workouts > 1 ? 's' : ''}, ${d.reps} push-ups` : 'rest day'
+                d.workouts ? describeDay(d) : 'rest day'
               }`}
               aria-pressed={selected === d.date}
               className={cx(
                 'aspect-square w-full rounded-[3px] transition-transform hover:scale-125',
                 HEAT[d.level],
-                selected === d.date && 'ring-2 ring-jersey ring-offset-1 ring-offset-court',
+                selected === d.date && 'ring-2 ring-accent ring-offset-1 ring-offset-court',
               )}
             />
           ) : (

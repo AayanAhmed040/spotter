@@ -1,4 +1,4 @@
-export const APP_NAME = 'Spotter'
+export const APP_NAME = 'Striqs'
 
 export const auth0Config = {
   domain: import.meta.env.VITE_AUTH0_DOMAIN as string | undefined,

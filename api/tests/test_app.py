@@ -40,14 +40,21 @@ def crew(actor):
 
 # ---------- scoring parity ----------
 
-def test_python_scorer_matches_shared_fixture():
+def test_python_scorers_match_shared_fixture():
+    from app.scoring import score_hold, score_reps
+
     fixture = json.loads((Path(__file__).parents[2] / "shared" / "scoring-cases.json").read_text())
-    assert fixture["cases"], "fixture is empty — run web/scripts/gen-scoring-fixture.ts"
+    assert {c["exercise"] for c in fixture["cases"]} == {"pushup", "squat", "plank"}
     for c in fixture["cases"]:
-        s = score_session(c["reps"], c["targetReps"])
-        for key, attr in [("formScore", "form_score"), ("repScore", "rep_score"), ("finalScore", "final_score")]:
-            assert getattr(s, attr) == pytest.approx(c["expected"][key], abs=0.051), (c["name"], key)
-        assert s.valid_reps == c["expected"]["validReps"], c["name"]
+        if "holdWindows" in c:
+            s = score_hold(c["exercise"], c["holdWindows"], c["target"] * 1000)
+            got = {"formScore": s.form_score, "volumeScore": s.hold_score, "finalScore": s.final_score,
+                   "holdMs": s.hold_ms, "longestHoldMs": s.longest_hold_ms}
+        else:
+            s = score_reps(c["exercise"], c["reps"], c["target"])
+            got = {"formScore": s.form_score, "volumeScore": s.rep_score, "finalScore": s.final_score, "validReps": s.valid_reps}
+        for key, expected in c["expected"].items():
+            assert got[key] == pytest.approx(expected, abs=0.051), (c["name"], key)
 
 
 def test_brief_example_users_a_and_b():
@@ -198,7 +205,7 @@ def test_weekly_insight_fallback_and_cache(crew):
     alice.post("/api/workouts", json=workout(10))
     a = alice.get("/api/me/insights?tz=UTC").json()
     assert a["source"] == "rules"
-    assert "10 valid" in a["summary"]
+    assert "10 push-ups" in a["summary"]
     b = alice.get("/api/me/insights?tz=UTC&refresh=true").json()
     assert b["generatedAt"] == a["generatedAt"]  # refresh throttled
 

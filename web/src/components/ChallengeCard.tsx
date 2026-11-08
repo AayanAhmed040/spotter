@@ -1,6 +1,7 @@
 import { Check, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { EXERCISE_META } from '../exercises/meta'
 import { plural } from '../lib/format'
 import { useChallenges, useGenerateChallenge } from '../lib/queries'
 import type { Challenge, Group } from '../lib/types'
@@ -27,9 +28,11 @@ function ProgressBar({ c }: { c: Challenge }) {
   return (
     <div>
       <div className="flex items-end justify-between">
-        <span className="font-display text-4xl leading-none font-black tabular">
+        <span className="font-display text-4xl leading-none font-bold tabular">
           {c.progressReps.toLocaleString()}
-          <span className="ml-1 font-sans text-sm font-normal text-mist">/ {c.goalReps.toLocaleString()}</span>
+          <span className="ml-1 font-sans text-sm font-normal text-mist">
+            / {c.goalReps.toLocaleString()} {EXERCISE_META[c.exercise]?.plural ?? 'reps'}
+          </span>
         </span>
         <span className="text-sm text-mist">{daysLeft(c)}</span>
       </div>
@@ -47,7 +50,7 @@ export function ChallengeStrip({ group }: { group: Group }) {
   if (!c) return null
   return (
     <Link to={`/groups/${group.id}`} className="block rounded-[var(--radius-card)] bg-court p-4 ring-1 ring-go/30 hover:ring-go/60">
-      <p className="text-sm text-mist">{group.name} · shared goal</p>
+      <p className="text-sm text-mist">Shared goal in {group.name}</p>
       <h3 className="mt-0.5 mb-3 font-semibold">{c.title}</h3>
       <ProgressBar c={c} />
       <p className="mt-2 text-sm text-mist">
@@ -63,6 +66,7 @@ export function ChallengeCard({ group }: { group: Group }) {
   const gen = useGenerateChallenge(group.id)
   const [difficulty, setDifficulty] = useState<'easy' | 'moderate' | 'hard'>('moderate')
   const [days, setDays] = useState<'5' | '7' | '14'>('7')
+  const [exercise, setExercise] = useState<'pushup' | 'squat'>('pushup')
   const [composing, setComposing] = useState(false)
   const canManage = group.myRole !== 'member'
   const c = q.data?.find((x) => x.active)
@@ -75,6 +79,15 @@ export function ChallengeCard({ group }: { group: Group }) {
         to.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
+        <Segmented
+          label="Exercise"
+          value={exercise}
+          onChange={setExercise}
+          options={[
+            { value: 'pushup', label: 'Push-ups' },
+            { value: 'squat', label: 'Squats' },
+          ]}
+        />
         <Segmented
           label="Difficulty"
           value={difficulty}
@@ -103,7 +116,7 @@ export function ChallengeCard({ group }: { group: Group }) {
       )}
       <div className="mt-4 flex gap-2">
         <Button
-          onClick={() => gen.mutate({ difficulty, days: Number(days) }, { onSuccess: () => setComposing(false) })}
+          onClick={() => gen.mutate({ difficulty, days: Number(days), exercise }, { onSuccess: () => setComposing(false) })}
           loading={gen.isPending}
         >
           <Sparkles className="size-4" aria-hidden /> {c ? 'Replace current challenge' : 'Generate challenge'}
@@ -121,7 +134,7 @@ export function ChallengeCard({ group }: { group: Group }) {
   if (!c) {
     return (
       <section className="rounded-[var(--radius-card)] bg-court p-4">
-        <h3 className="font-display text-2xl font-extrabold">Shared goal</h3>
+        <h3 className="font-display text-2xl font-bold">Shared goal</h3>
         {generator || <p className="mt-1 text-sm text-mist">No challenge running. Ask a group admin to start one.</p>}
       </section>
     )
@@ -133,7 +146,7 @@ export function ChallengeCard({ group }: { group: Group }) {
         <SourceBadge c={c} />
         <Badge>{c.difficulty}</Badge>
       </div>
-      <h3 className="mt-2 font-display text-3xl leading-none font-extrabold">{c.title}</h3>
+      <h3 className="mt-2 font-display text-3xl leading-none font-bold tracking-tight">{c.title}</h3>
       <p className="mt-2 text-[15px] text-mist">{c.description}</p>
       <div className="mt-4">
         <ProgressBar c={c} />
@@ -148,7 +161,9 @@ export function ChallengeCard({ group }: { group: Group }) {
             <Avatar user={p.user} size={28} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm">{p.user.displayName.split(' ')[0]}</p>
-              <p className="text-xs text-mist tabular">{p.reps} reps</p>
+              <p className="text-xs text-mist tabular">
+                {p.reps} {EXERCISE_META[c.exercise]?.plural ?? 'reps'}
+              </p>
             </div>
             {p.metMinimum && <Check className="size-4 text-go" aria-label="Met the session goal" />}
           </li>

@@ -34,7 +34,7 @@ export function InsightCard() {
         </div>
       ) : i ? (
         <>
-          <h3 className="mt-2 font-display text-[28px] leading-none font-extrabold">{i.headline}</h3>
+          <h3 className="mt-2 font-display text-[26px] leading-tight font-semibold tracking-tight">{i.headline}</h3>
           <p className="mt-2 text-[15px] text-mist">{i.summary}</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>

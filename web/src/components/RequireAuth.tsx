@@ -7,7 +7,7 @@ import { keys } from '../lib/queries'
 import { sessionEvents } from '../lib/session-events'
 import type { Me } from '../lib/types'
 import { Button } from './ui'
-import { Wordmark } from './Wordmark'
+import { Logo } from './Logo'
 
 /**
  * Gate for every signed-in route. While Auth0 resolves the session we show a
@@ -55,7 +55,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 function FullScreen({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-5 px-6">
-      <Wordmark className="text-5xl" />
+      <Logo className="text-5xl" />
       {children}
     </div>
   )
@@ -87,7 +87,7 @@ function SessionExpiredBanner() {
   useEffect(() => sessionEvents.subscribe(setExpired), [])
   if (!expired) return null
   return (
-    <div role="alert" className="fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-jersey/40 bg-court p-3 shadow-2xl">
+    <div role="alert" className="fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-accent/40 bg-court p-3 shadow-2xl">
       <p className="flex-1 text-sm">Your session expired. Sign in again to keep going.</p>
       <Button
         size="sm"

@@ -46,6 +46,8 @@ export function useApi() {
           ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...headers,
           Authorization: `Bearer ${token}`,
+          // Lets the API run behind a free ngrok tunnel without its browser warning page.
+          'ngrok-skip-browser-warning': 'true',
         },
         body: json !== undefined ? JSON.stringify(json) : rest.body,
       })
@@ -66,15 +68,4 @@ export function useApi() {
     },
     [getAccessTokenSilently],
   )
-}
-
-/** Decode a JWT payload for display only. Never used for authorization — the API verifies. */
-export function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const part = token.split('.')[1]
-    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'))
-    return JSON.parse(decodeURIComponent(escape(json)))
-  } catch {
-    return null
-  }
 }

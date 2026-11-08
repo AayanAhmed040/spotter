@@ -28,7 +28,7 @@ export default function GroupDetail() {
     if (!inviteUrl) return
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join ${g.name} on Spotter`, url: inviteUrl })
+        await navigator.share({ title: `Join ${g.name} on Striqs`, url: inviteUrl })
         return
       } catch {
         /* cancelled — fall through to copy */
@@ -45,7 +45,7 @@ export default function GroupDetail() {
         <Link to="/groups" className="inline-flex items-center gap-1 text-sm text-mist hover:text-chalk">
           <ArrowLeft className="size-4" aria-hidden /> Groups
         </Link>
-        <h1 className="mt-2 font-display text-5xl leading-[0.9] font-black">{g.name}</h1>
+        <h1 className="mt-2 font-display text-[44px] leading-[0.95] font-semibold tracking-[-0.03em]">{g.name}</h1>
         {g.description && <p className="mt-2 text-mist">{g.description}</p>}
         <div className="mt-3 flex -space-x-1.5">
           {g.members.slice(0, 8).map((m) => (
@@ -58,10 +58,10 @@ export default function GroupDetail() {
       </div>
 
       {g.inviteCode && (
-        <section className="flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-dashed border-jersey/50 p-4">
+        <section className="flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-dashed border-accent/50 p-4">
           <div className="flex-1">
             <p className="text-sm text-mist">Invite code</p>
-            <p className="font-display text-4xl leading-none font-black tracking-[0.12em] text-jersey">{g.inviteCode}</p>
+            <p className="font-display text-4xl leading-none font-semibold tracking-[0.12em] text-accent">{g.inviteCode}</p>
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={share}>

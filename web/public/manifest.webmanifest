@@ -1,18 +1,46 @@
 {
-  "name": "Spotter — push-ups with your crew",
-  "short_name": "Spotter",
-  "description": "Push-ups counted and form-checked by on-device AI, shared with your groups.",
+  "name": "Striqs \u2014 workouts with your crew",
+  "short_name": "Striqs",
+  "description": "Push-ups, squats and planks tracked by on-device AI, shared with your groups.",
   "start_url": "/feed",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0F1B33",
-  "theme_color": "#0F1B33",
-  "categories": ["health", "fitness", "social"],
-  "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  "background_color": "#181C21",
+  "theme_color": "#181C21",
+  "categories": [
+    "health",
+    "fitness",
+    "social"
   ],
-  "shortcuts": [{ "name": "Start push-ups", "url": "/workout", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }]
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start a workout",
+      "url": "/workout",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

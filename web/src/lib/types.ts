@@ -1,4 +1,4 @@
-import type { FormComponents, ScoredRep } from '../pose/types'
+import type { ExerciseId, HoldWindow, MetricKind } from '../exercises/shared/types'
 
 export interface UserPublic {
   id: number
@@ -18,26 +18,34 @@ export type ReactionKind = 'strong' | 'fire' | 'clap' | 'form'
 export interface Workout {
   id: number
   user: UserPublic
-  exercise: 'pushup'
+  exercise: ExerciseId
+  /** reps: push-ups, squats · hold: plank. Rep fields are null for holds and vice versa. */
+  metricKind: MetricKind
   source: 'camera' | 'demo' | 'seed'
   visibility: 'groups' | 'private'
   startedAt: string
   durationMs: number
-  targetReps: number
-  validReps: number
-  attemptedReps: number
+  targetReps: number | null
+  validReps: number | null
+  attemptedReps: number | null
+  repScore: number | null
+  targetHoldMs: number | null
+  holdMs: number | null
+  longestHoldMs: number | null
+  holdScore: number | null
   formScore: number
-  repScore: number
+  volumeScore: number | null
   finalScore: number
   consistency: number
   confidence: number
-  componentAverages: FormComponents
+  componentAverages: Record<string, number>
   scoringVersion: number
   note: string | null
   reactions: Record<ReactionKind, number>
   myReactions: ReactionKind[]
   isMine: boolean
-  reps?: ScoredRep[]
+  reps?: (Record<string, unknown> & { index: number; valid: boolean; invalidReason: string | null; formScore: number })[]
+  holdWindows?: (HoldWindow & { formScore: number; counted: boolean })[]
 }
 
 export interface FeedPage {
@@ -65,19 +73,25 @@ export interface LeaderboardRow {
   role: string
   bestScore: number | null
   averageScore: number | null
-  totalValidReps: number
+  /** Rep exercises only. */
+  totalValidReps: number | null
+  /** Hold exercises only. */
+  totalHoldMs: number | null
+  longestHoldMs: number | null
   workouts: number
   activeDays: number
   improvement: number | null
   cheersGiven: number
 }
 
-export type LeaderboardCategory = 'topScore' | 'mostReps' | 'mostConsistent' | 'mostImproved' | 'mostEncouraging'
+export type LeaderboardCategory = 'topScore' | 'mostReps' | 'longestHold' | 'mostConsistent' | 'mostImproved' | 'mostEncouraging'
 
 export interface Leaderboard {
   period: 'week' | 'month' | 'all'
+  exercise: ExerciseId
+  metricKind: MetricKind
   rows: LeaderboardRow[]
-  categories: Record<LeaderboardCategory, number[]>
+  categories: Partial<Record<LeaderboardCategory, number[]>>
 }
 
 export interface Challenge {
@@ -85,7 +99,7 @@ export interface Challenge {
   groupId: number
   title: string
   description: string
-  exercise: string
+  exercise: ExerciseId
   goalReps: number
   minSessionsPerMember: number
   difficulty: 'easy' | 'moderate' | 'hard'
@@ -107,6 +121,8 @@ export interface CalendarDay {
   date: string
   workouts: number
   reps: number
+  holdMs: number
+  exercises: ExerciseId[]
   level: 0 | 1 | 2 | 3 | 4
 }
 
@@ -117,18 +133,29 @@ export interface Achievement {
   earned: boolean
 }
 
-export interface UserStats {
-  totalWorkouts: number
-  totalValidReps: number
+export interface ExerciseStats {
+  workouts: number
   bestScore: number | null
   bestFormScore: number | null
   averageFormScore: number | null
+  formImprovement: number | null
+  lastAt: string | null
+  totalValidReps?: number
+  bestReps?: number
+  totalHoldMs?: number
+  longestHoldMs?: number
+}
+
+export interface UserStats {
+  totalWorkouts: number
+  totalValidReps: number
+  totalHoldMs: number
   activeDaysThisWeek: number
   activeWeeksStreak: number
-  formImprovement: number | null
   reactionsGiven: number
   groups: number
   simulatedWorkouts: number
+  byExercise: Record<ExerciseId, ExerciseStats>
   achievements: Achievement[]
 }
 
@@ -145,22 +172,8 @@ export interface Insight {
   summary: string
   highlights: string[]
   nextSteps: string[]
-  stats: Record<string, number | string | null>
+  stats: Record<string, unknown>
   source: 'gemini' | 'rules'
   aiModel: string | null
   generatedAt: string
-}
-
-export interface AuthSession {
-  verified: boolean
-  algorithm: string
-  issuer: string
-  audience: string | string[]
-  subject: string
-  authorizedParty: string | null
-  scopes: string[]
-  issuedAt: number
-  expiresAt: number
-  appUserId: number
-  checks: string[]
 }

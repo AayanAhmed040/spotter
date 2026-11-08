@@ -16,6 +16,8 @@ from ..services.stats import challenge_out, leaderboard, user_public
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
+EXERCISE_NAMES = {"pushup": "push-ups", "squat": "squats"}
+
 # No 0/O/1/I so codes are easy to read aloud.
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -139,10 +141,14 @@ def delete_group(group_id: int, user: CurrentUser, db: DB) -> None:
 
 @router.get("/{group_id}/leaderboard")
 def group_leaderboard(
-    group_id: int, user: CurrentUser, db: DB, period: Literal["week", "month", "all"] = "week"
+    group_id: int,
+    user: CurrentUser,
+    db: DB,
+    period: Literal["week", "month", "all"] = "week",
+    exercise: Literal["pushup", "squat", "plank"] = "pushup",
 ) -> dict[str, Any]:
     m = membership(db, group_id, user)
-    return leaderboard(db, m.group, period)
+    return leaderboard(db, m.group, period, exercise)
 
 
 # ---------- challenges ----------
@@ -150,6 +156,8 @@ def group_leaderboard(
 class GenerateChallengeIn(BaseModel):
     difficulty: Literal["easy", "moderate", "hard"] = "moderate"
     days: int = Field(7, ge=3, le=14)
+    # Shared goals are rep totals, so they're for rep exercises.
+    exercise: Literal["pushup", "squat"] = "pushup"
 
 
 @router.get("/{group_id}/challenges")
@@ -176,6 +184,7 @@ async def generate_challenge(group_id: int, body: GenerateChallengeIn, user: Cur
     rows = db.execute(
         select(Workout.user_id, Workout.valid_reps).where(
             Workout.user_id.in_(member_ids),
+            Workout.exercise == body.exercise,
             Workout.visibility == "groups",
             Workout.source.in_(COMPETITIVE_SOURCES),
             Workout.started_at >= now - timedelta(days=14),
@@ -183,7 +192,7 @@ async def generate_challenge(group_id: int, body: GenerateChallengeIn, user: Cur
     ).all()
     per_member = {uid: 0 for uid in member_ids}
     for uid, reps in rows:
-        per_member[uid] += reps
+        per_member[uid] += reps or 0
     active = [v for v in per_member.values() if v > 0]
     # Aggregates only: no names or identities go to Gemini.
     group_stats = {
@@ -192,17 +201,18 @@ async def generate_challenge(group_id: int, body: GenerateChallengeIn, user: Cur
         "sessionsLast14Days": len(rows),
         "validRepsLast14Days": sum(per_member.values()),
         "medianRepsPerActiveMemberLast14Days": sorted(active)[len(active) // 2] if active else 0,
-        "availableExercises": ["pushup"],
+        "exercise": EXERCISE_NAMES[body.exercise],
         "durationDays": body.days,
         "difficulty": body.difficulty,
     }
-    data, source, model = await gemini.group_challenge(group_stats, body.difficulty, body.days)
+    data, source, model = await gemini.group_challenge(group_stats, body.difficulty, body.days, EXERCISE_NAMES[body.exercise])
 
     # One active challenge at a time: end any current one now.
     for c in db.scalars(select(Challenge).where(Challenge.group_id == group_id, Challenge.ends_at >= now)):
         c.ends_at = now
     c = Challenge(
         group_id=group_id,
+        exercise=body.exercise,
         title=data["title"].strip(),
         description=data["description"].strip(),
         goal_reps=int(data["goal_reps"]),

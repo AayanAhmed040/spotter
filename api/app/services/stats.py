@@ -14,9 +14,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..db import as_utc, utcnow
-from ..models import COMPETITIVE_SOURCES, Challenge, Group, GroupMember, Reaction, User, Workout
+from ..models import COMPETITIVE_SOURCES, HOLD_EXERCISES, REP_EXERCISES, Challenge, Group, GroupMember, Reaction, User, Workout
 
 REACTION_KINDS = ("strong", "fire", "clap", "form")
+EXERCISES = (*REP_EXERCISES, *HOLD_EXERCISES)
 
 
 def tz_or_utc(name: str | None) -> ZoneInfo:
@@ -57,15 +58,24 @@ def workout_out(w: Workout, viewer_id: int, include_reps: bool = False) -> dict[
         "id": w.id,
         "user": user_public(w.user),
         "exercise": w.exercise,
+        "metricKind": w.metric_kind,
         "source": w.source,
         "visibility": w.visibility,
         "startedAt": as_utc(w.started_at).isoformat(),
         "durationMs": w.duration_ms,
+        # Rep exercises (null for holds)
         "targetReps": w.target_reps,
         "validReps": w.valid_reps,
         "attemptedReps": w.attempted_reps,
-        "formScore": w.form_score,
         "repScore": w.rep_score,
+        # Hold exercises (null for reps)
+        "targetHoldMs": w.target_hold_ms,
+        "holdMs": w.hold_ms,
+        "longestHoldMs": w.longest_hold_ms,
+        "holdScore": w.hold_score,
+        # Shared
+        "formScore": w.form_score,
+        "volumeScore": w.volume_score,
         "finalScore": w.final_score,
         "consistency": w.consistency,
         "confidence": w.confidence,
@@ -77,8 +87,14 @@ def workout_out(w: Workout, viewer_id: int, include_reps: bool = False) -> dict[
         "isMine": w.user_id == viewer_id,
     }
     if include_reps:
-        out["reps"] = w.rep_metrics
+        out["reps"] = w.rep_metrics or []
+        out["holdWindows"] = w.hold_windows or []
     return out
+
+
+def effort(valid_reps: int | None, hold_ms: int | None) -> float:
+    """A rough common unit for the activity calendar only: 1 rep ≈ 2 s of plank."""
+    return (valid_reps or 0) + (hold_ms or 0) / 2000
 
 
 # ---------- personal stats ----------
@@ -89,22 +105,38 @@ def calendar(db: Session, user_id: int, tz: ZoneInfo, days: int = 140) -> list[d
     # Always compare in UTC (SQLite stores datetimes without an offset).
     since = datetime.combine(start_day, datetime.min.time(), tz).astimezone(UTC)
     rows = db.execute(
-        select(Workout.started_at, Workout.valid_reps).where(
+        select(Workout.started_at, Workout.exercise, Workout.valid_reps, Workout.hold_ms).where(
             Workout.user_id == user_id, Workout.started_at >= since, Workout.source != "demo"
         )
     ).all()
-    by_day: dict[date, list[int]] = defaultdict(list)
-    for started, reps in rows:
-        by_day[local_day(started, tz)].append(reps)
+    by_day: dict[date, list[tuple[str, int | None, int | None]]] = defaultdict(list)
+    for started, exercise, reps, hold in rows:
+        by_day[local_day(started, tz)].append((exercise, reps, hold))
     out = []
     for i in range(days):
         d = start_day + timedelta(days=i)
         sessions = by_day.get(d, [])
-        reps = sum(sessions)
-        # Intensity is about showing up, not volume: 1 session = level 1, more effort = darker.
-        level = 0 if not sessions else 1 if len(sessions) == 1 and reps < 30 else 2 if reps < 50 else 3 if reps < 80 else 4
-        out.append({"date": d.isoformat(), "workouts": len(sessions), "reps": reps, "level": level})
+        e = sum(effort(r, h) for _, r, h in sessions)
+        # Intensity is about showing up, not volume: any session is green; more effort is brighter.
+        level = 0 if not sessions else 1 if len(sessions) == 1 and e < 30 else 2 if e < 50 else 3 if e < 80 else 4
+        out.append(
+            {
+                "date": d.isoformat(),
+                "workouts": len(sessions),
+                "reps": sum(r or 0 for _, r, _ in sessions),
+                "holdMs": sum(h or 0 for _, _, h in sessions),
+                "exercises": sorted({x for x, _, _ in sessions}),
+                "level": level,
+            }
+        )
     return out
+
+
+def _improvement(ws: list[Workout]) -> float | None:
+    """Average form of the latest five sessions vs the first five (needs six or more)."""
+    if len(ws) < 6:
+        return None
+    return round(fmean(w.form_score for w in ws[-5:]) - fmean(w.form_score for w in ws[:5]), 1)
 
 
 def user_stats(db: Session, user: User, tz: ZoneInfo) -> dict[str, Any]:
@@ -124,28 +156,39 @@ def user_stats(db: Session, user: User, tz: ZoneInfo) -> dict[str, Any]:
         streak_weeks += 1
         wk -= timedelta(days=7)
 
-    recent = real[-5:]
-    early = real[:5]
-    improvement = (
-        round(fmean(w.form_score for w in recent) - fmean(w.form_score for w in early), 1)
-        if len(real) >= 6
-        else None
-    )
+    # Each exercise is summarised on its own terms — no cross-exercise comparisons.
+    by_exercise: dict[str, dict[str, Any]] = {}
+    for ex in EXERCISES:
+        ws = [w for w in real if w.exercise == ex]
+        entry: dict[str, Any] = {
+            "workouts": len(ws),
+            "bestScore": max((w.final_score for w in ws), default=None),
+            "bestFormScore": max((w.form_score for w in ws), default=None),
+            "averageFormScore": round(fmean(w.form_score for w in ws), 1) if ws else None,
+            "formImprovement": _improvement(ws),
+            "lastAt": as_utc(ws[-1].started_at).isoformat() if ws else None,
+        }
+        if ex in REP_EXERCISES:
+            entry["totalValidReps"] = sum(w.valid_reps or 0 for w in ws)
+            entry["bestReps"] = max((w.valid_reps or 0 for w in ws), default=0)
+        else:
+            entry["totalHoldMs"] = sum(w.hold_ms or 0 for w in ws)
+            entry["longestHoldMs"] = max((w.longest_hold_ms or 0 for w in ws), default=0)
+        by_exercise[ex] = entry
+
     reactions_given = db.scalar(select(func.count()).select_from(Reaction).where(Reaction.user_id == user.id)) or 0
     groups = db.scalar(select(func.count()).select_from(GroupMember).where(GroupMember.user_id == user.id)) or 0
 
     stats = {
         "totalWorkouts": len(real),
-        "totalValidReps": sum(w.valid_reps for w in real),
-        "bestScore": max((w.final_score for w in real), default=None),
-        "bestFormScore": max((w.form_score for w in real), default=None),
-        "averageFormScore": round(fmean(w.form_score for w in real), 1) if real else None,
+        "totalValidReps": sum(by_exercise[e]["totalValidReps"] for e in REP_EXERCISES),
+        "totalHoldMs": sum(by_exercise[e]["totalHoldMs"] for e in HOLD_EXERCISES),
         "activeDaysThisWeek": len(weeks.get(this_week, set())),
         "activeWeeksStreak": streak_weeks,
-        "formImprovement": improvement,
         "reactionsGiven": reactions_given,
         "groups": groups,
         "simulatedWorkouts": len(workouts) - len(real),
+        "byExercise": by_exercise,
     }
     stats["achievements"] = achievements(stats, weeks)
     return stats
@@ -153,15 +196,21 @@ def user_stats(db: Session, user: User, tz: ZoneInfo) -> dict[str, Any]:
 
 def achievements(s: dict[str, Any], weeks: dict[date, set[date]]) -> list[dict[str, Any]]:
     best_week = max((len(v) for v in weeks.values()), default=0)
+    bx = s["byExercise"]
+    best_form = max((e["bestFormScore"] or 0 for e in bx.values()), default=0)
+    improving = any((e["formImprovement"] or 0) >= 5 for e in bx.values())
+    tried = sum(1 for e in bx.values() if e["workouts"] > 0)
     items = [
         ("first-set", "First set", "Logged your first tracked workout", s["totalWorkouts"] >= 1),
         ("crew", "Joined a crew", "Became part of a group", s["groups"] >= 1),
-        ("century", "Century", "100 valid push-ups in total", s["totalValidReps"] >= 100),
+        ("century", "Century", "100 valid reps of push-ups and squats", s["totalValidReps"] >= 100),
         ("steady-week", "Steady week", "Active on 3 different days in one week", best_week >= 3),
-        ("clean-form", "Clean form", "Scored 90+ form in a session", (s["bestFormScore"] or 0) >= 90),
-        ("on-the-rise", "On the rise", "Recent form 5+ points above your first sessions", (s["formImprovement"] or 0) >= 5),
+        ("clean-form", "Clean form", "Scored 90+ form in a session", best_form >= 90),
+        ("all-rounder", "All-rounder", "Tracked push-ups, squats and a plank", tried == len(EXERCISES)),
+        ("plank-minute", "Plank minute", "Held a plank for 60 seconds without breaking", bx["plank"]["longestHoldMs"] >= 60_000),
+        ("on-the-rise", "On the rise", "Recent form 5+ points above your first sessions", improving),
         ("hype-squad", "Hype squad", "Cheered on teammates 10 times", s["reactionsGiven"] >= 10),
-        ("five-hundred", "Five hundred", "500 valid push-ups in total", s["totalValidReps"] >= 500),
+        ("five-hundred", "Five hundred", "500 valid reps in total", s["totalValidReps"] >= 500),
     ]
     return [{"id": i, "title": t, "description": d, "earned": e} for i, t, d, e in items]
 
@@ -171,19 +220,22 @@ def achievements(s: dict[str, Any], weeks: dict[date, set[date]]) -> list[dict[s
 PERIODS = {"week": 7, "month": 30, "all": None}
 
 
-def leaderboard(db: Session, group: Group, period: str) -> dict[str, Any]:
+def leaderboard(db: Session, group: Group, period: str, exercise: str = "pushup") -> dict[str, Any]:
+    """One board per exercise: scores aren't comparable across exercises."""
     now = utcnow()
     span = PERIODS.get(period, 7)
     since = now - timedelta(days=span) if span else datetime(2000, 1, 1, tzinfo=UTC)
     prev_since = since - timedelta(days=span) if span else None
+    is_hold = exercise in HOLD_EXERCISES
 
     members = db.scalars(select(GroupMember).where(GroupMember.group_id == group.id)).all()
     member_ids = [m.user_id for m in members]
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(member_ids)))}
 
-    # Only shared, non-simulated workouts count toward a group board.
+    # Only shared, non-simulated workouts of this exercise count toward a group board.
     q = select(Workout).where(
         Workout.user_id.in_(member_ids),
+        Workout.exercise == exercise,
         Workout.visibility == "groups",
         Workout.source.in_(COMPETITIVE_SOURCES),
         Workout.started_at >= (prev_since or since),
@@ -193,14 +245,14 @@ def leaderboard(db: Session, group: Group, period: str) -> dict[str, Any]:
     for w in db.scalars(q):
         (current if as_utc(w.started_at) >= since else previous)[w.user_id].append(w)
 
-    # Encouragement: reactions given to groupmates' workouts in the period.
-    cheers = defaultdict(int)
-    for uid, wid_owner in db.execute(
+    # Encouragement: reactions given to groupmates' workouts in the period (any exercise).
+    cheers: dict[int, int] = defaultdict(int)
+    for uid, owner in db.execute(
         select(Reaction.user_id, Workout.user_id)
         .join(Workout, Workout.id == Reaction.workout_id)
         .where(Reaction.user_id.in_(member_ids), Workout.user_id.in_(member_ids), Reaction.created_at >= since)
     ):
-        if uid != wid_owner:
+        if uid != owner:
             cheers[uid] += 1
 
     rows = []
@@ -209,35 +261,43 @@ def leaderboard(db: Session, group: Group, period: str) -> dict[str, Any]:
         prev = previous.get(m.user_id, [])
         avg = round(fmean(w.final_score for w in ws), 1) if ws else None
         prev_avg = fmean(w.final_score for w in prev) if prev else None
-        rows.append(
-            {
-                "user": user_public(users[m.user_id]),
-                "role": m.role,
-                "bestScore": max((w.final_score for w in ws), default=None),
-                "averageScore": avg,
-                "totalValidReps": sum(w.valid_reps for w in ws),
-                "workouts": len(ws),
-                "activeDays": len({as_utc(w.started_at).date() for w in ws}),
-                "improvement": round(avg - prev_avg, 1) if avg is not None and prev_avg is not None else None,
-                "cheersGiven": cheers.get(m.user_id, 0),
-            }
-        )
+        row: dict[str, Any] = {
+            "user": user_public(users[m.user_id]),
+            "role": m.role,
+            "bestScore": max((w.final_score for w in ws), default=None),
+            "averageScore": avg,
+            "workouts": len(ws),
+            "activeDays": len({as_utc(w.started_at).date() for w in ws}),
+            "improvement": round(avg - prev_avg, 1) if avg is not None and prev_avg is not None else None,
+            "cheersGiven": cheers.get(m.user_id, 0),
+            "totalValidReps": None if is_hold else sum(w.valid_reps or 0 for w in ws),
+            "totalHoldMs": sum(w.hold_ms or 0 for w in ws) if is_hold else None,
+            "longestHoldMs": max((w.longest_hold_ms or 0 for w in ws), default=0) if is_hold else None,
+        }
+        rows.append(row)
 
     def rank(key: str) -> list[int]:
         ordered = sorted(rows, key=lambda r: (r[key] is None, -(r[key] or 0)))
         return [r["user"]["id"] for r in ordered if r[key] is not None and r[key] > 0]
 
+    categories = {
+        "topScore": rank("bestScore"),
+        "mostConsistent": rank("activeDays"),
+        "mostImproved": rank("improvement"),
+        "mostEncouraging": rank("cheersGiven"),
+    }
+    if is_hold:
+        categories["longestHold"] = rank("longestHoldMs")
+    else:
+        categories["mostReps"] = rank("totalValidReps")
+
     return {
         "period": period,
-        "rows": sorted(rows, key=lambda r: (r["bestScore"] is None, -(r["bestScore"] or 0), -r["totalValidReps"])),
+        "exercise": exercise,
+        "metricKind": "hold" if is_hold else "reps",
+        "rows": sorted(rows, key=lambda r: (r["bestScore"] is None, -(r["bestScore"] or 0))),
         # Separate recognitions so the board isn't only about the fittest person.
-        "categories": {
-            "topScore": rank("bestScore"),
-            "mostReps": rank("totalValidReps"),
-            "mostConsistent": rank("activeDays"),
-            "mostImproved": rank("improvement"),
-            "mostEncouraging": rank("cheersGiven"),
-        },
+        "categories": categories,
     }
 
 
@@ -258,7 +318,7 @@ def challenge_out(db: Session, c: Challenge) -> dict[str, Any]:
     reps_by_user: dict[int, int] = defaultdict(int)
     sessions_by_user: dict[int, int] = defaultdict(int)
     for uid, reps in rows:
-        reps_by_user[uid] += reps
+        reps_by_user[uid] += reps or 0
         sessions_by_user[uid] += 1
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(member_ids)))}
     total = sum(reps_by_user.values())

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     auth0_audience: str = ""
 
     # Any SQLAlchemy URL. Supabase / Tiger Cloud / Neon: paste the Postgres connection string.
+    # Default file name kept from the Spotter era so existing local databases keep working.
     database_url: str = "sqlite:///./spotter.db"
 
     # Comma-separated list of browser origins allowed to call the API.

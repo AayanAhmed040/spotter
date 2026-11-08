@@ -1,14 +1,14 @@
 /**
- * Simulated athlete: generates physically plausible side-view push-up
- * landmarks. Used by (1) unit tests and (2) the clearly-labelled Demo mode,
- * which runs these frames through the *real* detector and scorer.
+ * Simulated athlete for unit tests: physically plausible side-view push-up
+ * landmarks. Test-only — never shown in the app.
  *
  * Geometry: wrist planted under the shoulder, upper arm and forearm of equal
  * length L. For elbow angle θ, the shoulder sits 2L·sin(θ/2) above the wrist
  * and the elbow bulges L·cos(θ/2) toward the feet. Feet are the pivot.
  */
-import type { Landmark, PoseFrame } from './types'
-import { LM } from './types'
+import { gaussian, mulberry32 } from '../shared/random'
+import type { Landmark, PoseFrame } from '../shared/types'
+import { LM } from '../shared/types'
 
 export interface AthleteProfile {
   id: string
@@ -87,23 +87,7 @@ const ANKLE_X = 1080
 const ARM_SEG = 118 // upper arm = forearm length, px
 const HIP_FRACTION = 0.47
 
-/** Deterministic PRNG so tests are reproducible. */
-export function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function gaussian(rand: () => number): number {
-  const u = Math.max(rand(), 1e-9)
-  const v = rand()
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
-}
+export { mulberry32 } from '../shared/random'
 
 export interface SimulatedPose {
   /** Elbow angle the simulator intended at this instant (ground truth). */

@@ -1,28 +1,29 @@
 @import 'tailwindcss';
 
 /*
-  Spotter design tokens.
-  Navy court + jersey yellow; giant condensed numerals carry the personality.
-  Green is reserved for "this counted" (valid reps, activity calendar).
+  Striqs design tokens — taken from the logo: charcoal ground, ice-blue mark.
+  Ice blue is the brand/action colour; green means "this counted" (valid reps,
+  activity calendar); amber and red are coaching cues only.
 */
 @theme {
-  --font-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --font-display: 'Outfit Variable', 'Outfit', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Figtree Variable', 'Figtree', ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink: #0f1b33;
-  --color-court: #16264a;
-  --color-court-hi: #1c2f59;
-  --color-line: #273b66;
-  --color-chalk: #eef2f7;
-  --color-mist: #9baacb;
-  --color-dim: #6b7ca3;
-  --color-jersey: #ffc83d;
-  --color-jersey-hi: #ffd76e;
+  --color-ink: #181c21;
+  --color-court: #20262d;
+  --color-court-hi: #29303a;
+  --color-line: #343d48;
+  --color-chalk: #eef3f8;
+  --color-mist: #a3b0bf;
+  --color-dim: #6e7b8a;
+  --color-accent: #c6dcf2;
+  --color-accent-hi: #dceaf8;
   --color-go: #3ddc97;
+  --color-warn: #ffc857;
   --color-flag: #ff6b5b;
-  --color-sky: #7cc4ff;
+  --color-sky: #b7a8ff;
 
-  --color-heat-0: #1e2d50;
+  --color-heat-0: #262d36;
   --color-heat-1: #1d5848;
   --color-heat-2: #237d5f;
   --color-heat-3: #2ead79;
@@ -42,7 +43,7 @@
     overflow-x: hidden;
   }
   :focus-visible {
-    outline: 2px solid var(--color-jersey);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
   button {

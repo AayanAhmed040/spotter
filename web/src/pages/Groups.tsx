@@ -51,7 +51,7 @@ export default function Groups() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Group name, e.g. MRU Data Science crew"
               aria-label="Group name"
-              className="h-11 w-full rounded-xl border border-line bg-ink px-3 placeholder:text-dim focus:border-jersey focus:outline-none"
+              className="h-11 w-full rounded-xl border border-line bg-ink px-3 placeholder:text-dim focus:border-accent focus:outline-none"
             />
             <input
               maxLength={280}
@@ -59,7 +59,7 @@ export default function Groups() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What's it for? (optional)"
               aria-label="Description"
-              className="h-11 w-full rounded-xl border border-line bg-ink px-3 placeholder:text-dim focus:border-jersey focus:outline-none"
+              className="h-11 w-full rounded-xl border border-line bg-ink px-3 placeholder:text-dim focus:border-accent focus:outline-none"
             />
             {create.isError && <ErrorNote error={create.error} />}
             <div className="flex gap-2">
@@ -90,7 +90,7 @@ export default function Groups() {
             {groups.data.map((g) => (
               <li key={g.id}>
                 <Link to={`/groups/${g.id}`} className="flex items-center gap-4 rounded-[var(--radius-card)] bg-court p-4 hover:bg-court-hi">
-                  <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-jersey font-display text-2xl font-black text-ink">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-accent font-display text-2xl font-semibold text-ink">
                     {g.name.slice(0, 1).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -110,7 +110,7 @@ export default function Groups() {
       </section>
 
       <section className="rounded-[var(--radius-card)] border border-line p-4">
-        <h2 className="font-display text-2xl font-extrabold">Join with a code</h2>
+        <h2 className="font-display text-2xl font-bold">Join with a code</h2>
         <p className="mt-1 text-sm text-mist">Ask a group owner for their six-character invite code.</p>
         <form
           className="mt-3 flex gap-2"
@@ -123,10 +123,10 @@ export default function Groups() {
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
             maxLength={12}
-            placeholder="DEMO42"
+            placeholder="ABC234"
             aria-label="Invite code"
             autoCapitalize="characters"
-            className="h-11 w-36 rounded-xl border border-line bg-ink px-3 font-display text-xl font-bold tracking-widest placeholder:text-dim focus:border-jersey focus:outline-none"
+            className="h-11 w-36 rounded-xl border border-line bg-ink px-3 font-display text-xl font-semibold tracking-widest placeholder:text-dim focus:border-accent focus:outline-none"
           />
           <Button type="submit" loading={join.isPending} disabled={code.length < 4}>
             Join group

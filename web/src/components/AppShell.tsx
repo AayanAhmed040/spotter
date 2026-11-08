@@ -1,14 +1,14 @@
-import { Home, ShieldCheck, User, Users } from 'lucide-react'
+import { Home, Settings, User, Users } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cx } from './ui'
-import { Wordmark } from './Wordmark'
+import { Logo, LogoMark } from './Logo'
 
 const NAV = [
   { to: '/feed', label: 'Feed', icon: Home },
   { to: '/groups', label: 'Groups', icon: Users },
   { to: '/workout', label: 'Start', icon: null },
   { to: '/me', label: 'You', icon: User },
-  { to: '/account', label: 'Account', icon: ShieldCheck },
+  { to: '/account', label: 'Account', icon: Settings },
 ] as const
 
 export function AppShell() {
@@ -20,7 +20,7 @@ export function AppShell() {
       {/* Desktop rail */}
       <aside className="fixed inset-y-0 left-0 hidden w-56 flex-col border-r border-line/60 px-4 py-6 md:flex">
         <NavLink to="/feed" className="px-3">
-          <Wordmark className="text-4xl" />
+          <Logo className="text-[34px]" />
         </NavLink>
         <nav className="mt-8 flex flex-col gap-1" aria-label="Main">
           {NAV.map((item) =>
@@ -42,10 +42,10 @@ export function AppShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                className="my-3 flex h-12 items-center justify-center gap-2 rounded-full bg-jersey font-semibold text-ink hover:bg-jersey-hi"
+                className="my-3 flex h-12 items-center justify-center gap-2 rounded-full bg-accent font-semibold text-ink hover:bg-accent-hi"
               >
-                <PushupGlyph className="size-6" />
-                Start push-ups
+                <LogoMark className="h-4 w-auto" />
+                Start a workout
               </NavLink>
             ),
           )}
@@ -56,7 +56,7 @@ export function AppShell() {
       {!inWorkout && (
         <header className="safe-top sticky top-0 z-30 border-b border-line/50 bg-ink/90 backdrop-blur md:hidden">
           <div className="flex h-14 items-center px-4">
-            <Wordmark className="text-[32px]" />
+            <Logo className="text-[28px]" />
           </div>
         </header>
       )}
@@ -82,15 +82,15 @@ export function AppShell() {
               >
                 {({ isActive }) => (
                   <>
-                    <item.icon className={cx('size-6', isActive && 'text-jersey')} strokeWidth={isActive ? 2.4 : 1.8} aria-hidden />
+                    <item.icon className={cx('size-6', isActive && 'text-accent')} strokeWidth={isActive ? 2.4 : 1.8} aria-hidden />
                     {item.label}
                   </>
                 )}
               </NavLink>
             ) : (
-              <NavLink key={item.to} to={item.to} aria-label="Start push-ups" className="flex flex-col items-center gap-0.5 text-[11px] text-chalk">
-                <span className="-mt-6 grid size-14 place-items-center rounded-full bg-jersey text-ink shadow-[0_6px_24px_-6px_rgba(255,200,61,0.6)] ring-4 ring-ink">
-                  <PushupGlyph className="size-7" />
+              <NavLink key={item.to} to={item.to} aria-label="Start a workout" className="flex flex-col items-center gap-0.5 text-[11px] text-chalk">
+                <span className="-mt-6 grid size-14 place-items-center rounded-full bg-accent text-ink shadow-[0_6px_24px_-6px_rgba(198,220,242,0.55)] ring-4 ring-ink">
+                  <LogoMark className="h-5 w-auto" />
                 </span>
                 Start
               </NavLink>
@@ -99,17 +99,5 @@ export function AppShell() {
         </div>
       </nav>
     </div>
-  )
-}
-
-/** A tiny push-up figure, used wherever "start a workout" appears. */
-export function PushupGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="6.5" cy="12" r="2.6" fill="currentColor" stroke="none" />
-      <path d="M9.5 14.5 L28 19.5" />
-      <path d="M11 15 L12 20.5 L10.5 25" />
-      <path d="M3 25.5 H29" strokeWidth={1.6} opacity={0.5} />
-    </svg>
   )
 }
